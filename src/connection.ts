@@ -27,6 +27,7 @@ export class Connection {
     } = {};
     private lastCorrelationId = 0;
     private chunks: Buffer[] = [];
+    private shouldReconnect = false;
 
     constructor(private options: ConnectionOptions) {}
 
@@ -38,7 +39,7 @@ export class Connection {
     public async connect() {
         this.queue = {};
         this.chunks = [];
-
+        this.shouldReconnect = true;
         await new Promise<void>((resolve, reject) => {
             const { ssl, connection } = this.options;
 
@@ -58,16 +59,35 @@ export class Connection {
 
         this.socket.on('error', (error) => log.debug('Socket error', { error }));
         this.socket.on('data', (data) => this.handleData(data));
+        this.socket.on('connectionAttemptTimeout', (data) => log.debug('connectionAttemptTimeout', { data }));
+        this.socket.on('close', (data) => log.debug('close', { data }));
+        this.socket.on('timeout', (data: any) => log.debug('timeout', { data }));
+        
         this.socket.once('close', async () => {
             Object.values(this.queue).forEach(({ reject }) => {
                 reject(new ConnectionError('Socket closed unexpectedly'));
             });
             this.queue = {};
+        
+            if (this.shouldReconnect) {
+                log.debug('Attempting to reconnect after unexpected socket close...');
+                try {
+                    await this.connect(); // ponowna próba połączenia
+                    log.debug('Reconnected successfully.');
+                } catch (err) {
+                    log.error('Reconnect attempt failed:', err);
+                    // Opcjonalnie: można spróbować kolejnych prób reconnectu z opóźnieniem
+                    // lub emitować zdarzenie do warstwy wyżej
+                }
+            } else {
+                log.debug('Socket closed by user request, not reconnecting.');
+            }
         });
     }
 
     @trace()
     public disconnect() {
+        this.shouldReconnect = false;
         this.socket.removeAllListeners();
         return new Promise<void>((resolve) => {
             if (!this.isConnected()) {
@@ -166,6 +186,10 @@ export class Connection {
 
     private nextCorrelationId() {
         return this.lastCorrelationId++;
+    }
+
+    private handleError() {
+
     }
 }
 
