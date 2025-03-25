@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.xor = exports.hmac = exports.hash = exports.base64Decode = exports.base64Encode = exports.saltPassword = exports.generateNonce = void 0;
+const crypto_1 = require("crypto");
+const generateNonce = () => (0, crypto_1.randomBytes)(16).toString('base64').replace(/[\/=]/g, '');
+exports.generateNonce = generateNonce;
+const saltPassword = (password, salt, iterations, keyLength, digest) => new Promise((resolve, reject) => (0, crypto_1.pbkdf2)(password, salt, iterations, keyLength, digest, (err, key) => (err ? reject(err) : resolve(key))));
+exports.saltPassword = saltPassword;
+const base64Encode = (input) => Buffer.from(input).toString('base64');
+exports.base64Encode = base64Encode;
+const base64Decode = (input) => Buffer.from(input, 'base64').toString();
+exports.base64Decode = base64Decode;
+const hash = (data, digest) => (0, crypto_1.createHash)(digest).update(data).digest();
+exports.hash = hash;
+const hmac = (key, data, digest) => (0, crypto_1.createHmac)(digest, key).update(data).digest();
+exports.hmac = hmac;
+const xor = (a, b) => Buffer.from(a.map((byte, i) => byte ^ b[i]));
+exports.xor = xor;
